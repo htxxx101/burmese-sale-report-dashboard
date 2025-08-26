@@ -603,18 +603,6 @@ export default function SalesReportDashboard() {
           <p className="text-muted-foreground text-lg">
             Your Online Sale Report
           </p>
-          
-          {/* Export PDF Button */}
-          <div className="flex justify-center">
-            <Button 
-              onClick={exportToPDF}
-              className="bg-gradient-to-r from-success to-warning text-white shadow-lg hover:shadow-xl transition-all duration-300"
-              size="lg"
-            >
-              <Download className="h-5 w-5 mr-2" />
-              Export Report as PDF
-            </Button>
-          </div>
         </div>
 
         {/* Google Sheets Configuration Toggle */}
@@ -726,21 +714,41 @@ export default function SalesReportDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {PERIOD_ORDER.map(period => (
-                <Button
-                  key={period}
-                  variant={selectedPeriod === period ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSelectedPeriod(period)}
-                  className={cn(
-                    "transition-all duration-200",
-                    selectedPeriod === period && "bg-gradient-to-r from-primary to-info shadow-lg"
-                  )}
-                >
-                  {PERIOD_LABELS[period]}
-                </Button>
-              ))}
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                {PERIOD_ORDER.map(period => (
+                  <Button
+                    key={period}
+                    variant={selectedPeriod === period ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSelectedPeriod(period)}
+                    className={cn(
+                      "transition-all duration-200",
+                      selectedPeriod === period && "bg-gradient-to-r from-primary to-info shadow-lg"
+                    )}
+                  >
+                    {PERIOD_LABELS[period]}
+                  </Button>
+                ))}
+              </div>
+              
+              {/* Export Options */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    Export current period as PDF:
+                  </div>
+                  <Button 
+                    onClick={exportToPDF}
+                    variant="outline"
+                    size="sm"
+                    className="bg-gradient-to-r from-success/10 to-warning/10 hover:from-success/20 hover:to-warning/20 border-success/20"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export {PERIOD_LABELS[selectedPeriod]}
+                  </Button>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
