@@ -5,9 +5,11 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Calendar, TrendingUp, ShoppingCart, Package, DollarSign, Clock, User, Hash, Settings, Lock, Unlock, Eye, EyeOff } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
+import { Calendar, TrendingUp, ShoppingCart, Package, DollarSign, Clock, User, Hash, Settings, Lock, Unlock, Eye, EyeOff, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 // Types
 interface OrderItem {
@@ -90,31 +92,156 @@ export default function SalesReportDashboard() {
   const [showGoogleSheetsConfig, setShowGoogleSheetsConfig] = useState(false);
   const [isConfigLocked, setIsConfigLocked] = useState(false);
 
-  // Sample data for development (replace with Google Sheets API call)
+  // Enhanced sample data for better visualization (ignored when Google Sheets data is connected)
   const sampleData: SalesData[] = [
+    // Today's orders
     {
       created_time: "2025-08-26T01:35:55+0000",
-      sender: "Bhone Khant",
+      sender: "Bhone Khant", 
       order_id: "ORD-20250826-5b1abb",
-      item: '[{"item":"Redmi note12","price_per_unit":15000,"quantity":1,"subtotal":15000},{"item":"Gannng","price_per_unit":30000,"quantity":2,"subtotal":60000},{"item":"Lamba","price_per_unit":2400,"quantity":3,"subtotal":7200}]'
+      item: '[{"item":"Redmi Note 12","price_per_unit":450000,"quantity":1,"subtotal":450000},{"item":"Phone Case","price_per_unit":15000,"quantity":2,"subtotal":30000}]'
+    },
+    {
+      created_time: "2025-08-26T08:20:15+0000",
+      sender: "Mg Thant",
+      order_id: "ORD-20250826-7c2def",
+      item: '[{"item":"Samsung Galaxy A54","price_per_unit":520000,"quantity":1,"subtotal":520000},{"item":"Screen Protector","price_per_unit":8000,"quantity":1,"subtotal":8000}]'
+    },
+    {
+      created_time: "2025-08-26T14:45:30+0000", 
+      sender: "Ma Hnin",
+      order_id: "ORD-20250826-9e4bcd",
+      item: '[{"item":"iPhone 15 Pro","price_per_unit":1800000,"quantity":1,"subtotal":1800000},{"item":"MagSafe Charger","price_per_unit":65000,"quantity":1,"subtotal":65000}]'
     },
     {
       created_time: "2025-08-26T19:41:34+0000",
-      sender: "Ahha lala",
+      sender: "Ko Aung",
       order_id: "ORD-20250826-41afdf",
-      item: '[{"item":"Tomato sauce","price_per_unit":12000,"quantity":1,"subtotal":12000},{"item":"Ginger","price_per_unit":30000,"quantity":2,"subtotal":60000},{"item":"Nano","price_per_unit":24000,"quantity":1,"subtotal":24000}]'
+      item: '[{"item":"MacBook Air M2","price_per_unit":1950000,"quantity":1,"subtotal":1950000},{"item":"Magic Mouse","price_per_unit":120000,"quantity":1,"subtotal":120000}]'
+    },
+    
+    // Yesterday's orders
+    {
+      created_time: "2025-08-25T09:15:20+0000",
+      sender: "Ma Khin",
+      order_id: "ORD-20250825-abc123", 
+      item: '[{"item":"iPad Air","price_per_unit":850000,"quantity":1,"subtotal":850000},{"item":"Apple Pencil","price_per_unit":180000,"quantity":1,"subtotal":180000}]'
     },
     {
-      created_time: "2025-08-25T10:15:20+0000",
-      sender: "John Doe",
-      order_id: "ORD-20250825-abc123",
-      item: '[{"item":"iPhone 15","price_per_unit":450000,"quantity":1,"subtotal":450000}]'
+      created_time: "2025-08-25T12:30:45+0000",
+      sender: "Ko Zaw",
+      order_id: "ORD-20250825-def456",
+      item: '[{"item":"Sony WH-1000XM5","price_per_unit":480000,"quantity":1,"subtotal":480000},{"item":"Charging Case","price_per_unit":25000,"quantity":1,"subtotal":25000}]'
     },
     {
-      created_time: "2025-08-24T14:30:45+0000",
-      sender: "Jane Smith",
-      order_id: "ORD-20250824-def456",
-      item: '[{"item":"Samsung Galaxy","price_per_unit":320000,"quantity":1,"subtotal":320000},{"item":"Case","price_per_unit":5000,"quantity":2,"subtotal":10000}]'
+      created_time: "2025-08-25T16:22:10+0000",
+      sender: "Ma Phyu", 
+      order_id: "ORD-20250825-ghi789",
+      item: '[{"item":"Dell XPS 13","price_per_unit":1650000,"quantity":1,"subtotal":1650000},{"item":"Wireless Mouse","price_per_unit":35000,"quantity":1,"subtotal":35000}]'
+    },
+    
+    // Past week orders
+    {
+      created_time: "2025-08-24T10:45:30+0000",
+      sender: "Ko Min",
+      order_id: "ORD-20250824-jkl012",
+      item: '[{"item":"AirPods Pro 2","price_per_unit":380000,"quantity":2,"subtotal":760000},{"item":"Lightning Cable","price_per_unit":12000,"quantity":3,"subtotal":36000}]'
+    },
+    {
+      created_time: "2025-08-23T14:20:15+0000",
+      sender: "Ma Su",
+      order_id: "ORD-20250823-mno345",
+      item: '[{"item":"Nintendo Switch","price_per_unit":480000,"quantity":1,"subtotal":480000},{"item":"Pro Controller","price_per_unit":85000,"quantity":1,"subtotal":85000}]'
+    },
+    {
+      created_time: "2025-08-22T11:30:45+0000", 
+      sender: "Ko Naing",
+      order_id: "ORD-20250822-pqr678",
+      item: '[{"item":"PlayStation 5","price_per_unit":850000,"quantity":1,"subtotal":850000},{"item":"Extra Controller","price_per_unit":95000,"quantity":2,"subtotal":190000}]'
+    },
+    {
+      created_time: "2025-08-21T15:45:20+0000",
+      sender: "Ma Thida",
+      order_id: "ORD-20250821-stu901",
+      item: '[{"item":"Canon EOS R6","price_per_unit":2200000,"quantity":1,"subtotal":2200000},{"item":"50mm Lens","price_per_unit":650000,"quantity":1,"subtotal":650000}]'
+    },
+    
+    // This month's earlier orders  
+    {
+      created_time: "2025-08-20T09:15:30+0000",
+      sender: "Ko Htun",
+      order_id: "ORD-20250820-vwx234",
+      item: '[{"item":"Surface Laptop 5","price_per_unit":1750000,"quantity":1,"subtotal":1750000},{"item":"Surface Pen","price_per_unit":150000,"quantity":1,"subtotal":150000}]'
+    },
+    {
+      created_time: "2025-08-19T13:22:45+0000",
+      sender: "Ma Ei",
+      order_id: "ORD-20250819-yz567",
+      item: '[{"item":"Xiaomi Mi 13","price_per_unit":420000,"quantity":1,"subtotal":420000},{"item":"Wireless Earbuds","price_per_unit":85000,"quantity":1,"subtotal":85000}]'
+    },
+    {
+      created_time: "2025-08-18T16:10:20+0000",
+      sender: "Ko Lwin",
+      order_id: "ORD-20250818-abc890",
+      item: '[{"item":"Gaming Chair","price_per_unit":320000,"quantity":1,"subtotal":320000},{"item":"Desk Lamp","price_per_unit":45000,"quantity":1,"subtotal":45000}]'
+    },
+    
+    // Last month's orders (July 2025)
+    {
+      created_time: "2025-07-28T10:30:15+0000",
+      sender: "Ma Cho",
+      order_id: "ORD-20250728-def123",
+      item: '[{"item":"Lenovo ThinkPad","price_per_unit":1450000,"quantity":1,"subtotal":1450000},{"item":"Docking Station","price_per_unit":180000,"quantity":1,"subtotal":180000}]'
+    },
+    {
+      created_time: "2025-07-25T14:45:30+0000",
+      sender: "Ko Ye",
+      order_id: "ORD-20250725-ghi456",
+      item: '[{"item":"Smart TV 55 inch","price_per_unit":950000,"quantity":1,"subtotal":950000},{"item":"Sound Bar","price_per_unit":280000,"quantity":1,"subtotal":280000}]'
+    },
+    {
+      created_time: "2025-07-22T11:20:45+0000",
+      sender: "Ma May",
+      order_id: "ORD-20250722-jkl789",
+      item: '[{"item":"Air Fryer","price_per_unit":180000,"quantity":1,"subtotal":180000},{"item":"Rice Cooker","price_per_unit":120000,"quantity":1,"subtotal":120000}]'
+    },
+    {
+      created_time: "2025-07-18T16:35:20+0000",
+      sender: "Ko Htet",
+      order_id: "ORD-20250718-mno012", 
+      item: '[{"item":"Espresso Machine","price_per_unit":650000,"quantity":1,"subtotal":650000},{"item":"Coffee Beans","price_per_unit":25000,"quantity":4,"subtotal":100000}]'
+    },
+    {
+      created_time: "2025-07-15T09:15:30+0000",
+      sender: "Ma Nwe",
+      order_id: "ORD-20250715-pqr345",
+      item: '[{"item":"Robot Vacuum","price_per_unit":480000,"quantity":1,"subtotal":480000},{"item":"Extra Filters","price_per_unit":15000,"quantity":6,"subtotal":90000}]'
+    },
+    {
+      created_time: "2025-07-12T13:45:15+0000",
+      sender: "Ko San",
+      order_id: "ORD-20250712-stu678",
+      item: '[{"item":"Electric Scooter","price_per_unit":850000,"quantity":1,"subtotal":850000},{"item":"Helmet","price_per_unit":45000,"quantity":1,"subtotal":45000}]'
+    },
+    {
+      created_time: "2025-07-08T12:20:45+0000",
+      sender: "Ma Win",
+      order_id: "ORD-20250708-vwx901",
+      item: '[{"item":"Smart Watch","price_per_unit":320000,"quantity":1,"subtotal":320000},{"item":"Extra Bands","price_per_unit":25000,"quantity":3,"subtotal":75000}]'
+    },
+    
+    // Additional historical data for better visualization
+    {
+      created_time: "2025-07-05T15:30:20+0000",
+      sender: "Ko Tun",
+      order_id: "ORD-20250705-yza234",
+      item: '[{"item":"Bluetooth Speaker","price_per_unit":120000,"quantity":2,"subtotal":240000},{"item":"Power Bank","price_per_unit":35000,"quantity":1,"subtotal":35000}]'
+    },
+    {
+      created_time: "2025-07-02T11:45:30+0000",
+      sender: "Ma Moe", 
+      order_id: "ORD-20250702-bcd567",
+      item: '[{"item":"Tablet 10 inch","price_per_unit":380000,"quantity":1,"subtotal":380000},{"item":"Keyboard Cover","price_per_unit":65000,"quantity":1,"subtotal":65000}]'
     }
   ];
 
@@ -369,6 +496,97 @@ export default function SalesReportDashboard() {
                      new Date(`${b.month.split(' ')[1]}-${b.month.split(' ')[0]}-01`).getTime());
   }, [filteredOrders, selectedPeriod]);
 
+  // This Month vs Last Month Comparison
+  const monthlyComparisonCurrentVsLast = useMemo(() => {
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+
+    // Calculate this month's data
+    const thisMonthOrders = processedOrders.filter(order => {
+      const orderDate = new Date(order.created_time);
+      return orderDate >= thisMonthStart && orderDate <= thisMonthEnd;
+    });
+
+    // Calculate last month's data
+    const lastMonthOrders = processedOrders.filter(order => {
+      const orderDate = new Date(order.created_time);
+      return orderDate >= lastMonthStart && orderDate <= lastMonthEnd;
+    });
+
+    const thisMonthRevenue = thisMonthOrders.reduce((sum, order) => sum + order.total_amount, 0);
+    const lastMonthRevenue = lastMonthOrders.reduce((sum, order) => sum + order.total_amount, 0);
+    const thisMonthOrderCount = thisMonthOrders.length;
+    const lastMonthOrderCount = lastMonthOrders.length;
+
+    const revenueChange = lastMonthRevenue > 0 ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue * 100) : 0;
+    const orderChange = lastMonthOrderCount > 0 ? ((thisMonthOrderCount - lastMonthOrderCount) / lastMonthOrderCount * 100) : 0;
+
+    return {
+      thisMonth: {
+        revenue: thisMonthRevenue,
+        orders: thisMonthOrderCount,
+        month: now.toLocaleDateString('my-MM', { month: 'long' })
+      },
+      lastMonth: {
+        revenue: lastMonthRevenue,
+        orders: lastMonthOrderCount,
+        month: new Date(now.getFullYear(), now.getMonth() - 1, 1).toLocaleDateString('my-MM', { month: 'long' })
+      },
+      revenueChange,
+      orderChange
+    };
+  }, [processedOrders]);
+
+  // Export to PDF functionality
+  const exportToPDF = async () => {
+    try {
+      const dashboardElement = document.getElementById('dashboard-content');
+      if (!dashboardElement) return;
+
+      // Create canvas from the dashboard
+      const canvas = await html2canvas(dashboardElement, {
+        height: window.innerHeight,
+        width: window.innerWidth,
+        scrollX: 0,
+        scrollY: 0,
+        useCORS: true,
+        scale: 2, // Higher quality
+        allowTaint: true
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      const imgWidth = 210;
+      const pageHeight = 295;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+
+      let position = 0;
+
+      // Add first page
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      // Add additional pages if content is longer than one page
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      // Save PDF with current date
+      const currentDate = new Date().toISOString().split('T')[0];
+      pdf.save(`sales-report-${currentDate}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+    }
+  };
+
   // Format currency in Myanmar Kyat
   const formatCurrency = (amount: number) => {
     return `${amount.toLocaleString('my-MM')} ကျပ်`;
@@ -376,7 +594,7 @@ export default function SalesReportDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/30 to-accent/20 p-4 md:p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="mx-auto max-w-7xl space-y-6" id="dashboard-content">
         {/* Header */}
         <div className="text-center space-y-4">
           <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary via-info to-success bg-clip-text text-transparent">
@@ -385,6 +603,18 @@ export default function SalesReportDashboard() {
           <p className="text-muted-foreground text-lg">
             Your Online Sale Report
           </p>
+          
+          {/* Export PDF Button */}
+          <div className="flex justify-center">
+            <Button 
+              onClick={exportToPDF}
+              className="bg-gradient-to-r from-success to-warning text-white shadow-lg hover:shadow-xl transition-all duration-300"
+              size="lg"
+            >
+              <Download className="h-5 w-5 mr-2" />
+              Export Report as PDF
+            </Button>
+          </div>
         </div>
 
         {/* Google Sheets Configuration Toggle */}
@@ -763,6 +993,201 @@ export default function SalesReportDashboard() {
                 </CardContent>
               </Card>
             )}
+
+            {/* This Month vs Last Month Comparison */}
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-info/10 to-primary/10 backdrop-blur-sm">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-primary" />
+                      လစဉ် နှိုင်းယှဉ်ချက်
+                    </CardTitle>
+                    <CardDescription>
+                      {monthlyComparisonCurrentVsLast.thisMonth.month} နှင့် {monthlyComparisonCurrentVsLast.lastMonth.month} နှိုင်းယှဉ်မှု
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Revenue Comparison */}
+                  <div className="space-y-4">
+                    <h4 className="font-semibold text-base flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-success" />
+                      ရောင်းအား နှိုင်းယှဉ်ချက်
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-success/5 to-success/10 border border-success/20">
+                        <div>
+                          <p className="text-sm text-muted-foreground">{monthlyComparisonCurrentVsLast.thisMonth.month}</p>
+                          <p className="text-xl font-bold text-success">
+                            {formatCurrency(monthlyComparisonCurrentVsLast.thisMonth.revenue)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <Badge 
+                            variant={monthlyComparisonCurrentVsLast.revenueChange >= 0 ? "default" : "destructive"}
+                            className={
+                              monthlyComparisonCurrentVsLast.revenueChange >= 0 
+                                ? "bg-success/10 text-success border-success/20" 
+                                : ""
+                            }
+                          >
+                            {monthlyComparisonCurrentVsLast.revenueChange >= 0 ? '+' : ''}
+                            {monthlyComparisonCurrentVsLast.revenueChange.toFixed(1)}%
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-muted/5 to-muted/10 border border-muted/20">
+                        <div>
+                          <p className="text-sm text-muted-foreground">{monthlyComparisonCurrentVsLast.lastMonth.month}</p>
+                          <p className="text-xl font-bold text-muted-foreground">
+                            {formatCurrency(monthlyComparisonCurrentVsLast.lastMonth.revenue)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Visual Revenue Bar */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Progress</span>
+                        <span>{monthlyComparisonCurrentVsLast.revenueChange >= 0 ? 'တိုးတက်' : 'ကျဆင်း'}</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            monthlyComparisonCurrentVsLast.revenueChange >= 0 ? 'bg-success' : 'bg-destructive'
+                          }`}
+                          style={{ 
+                            width: `${Math.min(Math.abs(monthlyComparisonCurrentVsLast.revenueChange), 100)}%` 
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Orders Comparison */}
+                  <div className="space-y-4">
+                    <h4 className="font-semibold text-base flex items-center gap-2">
+                      <ShoppingCart className="h-4 w-4 text-info" />
+                      မှာယူမှု နှိုင်းယှဉ်ချက်
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-info/5 to-info/10 border border-info/20">
+                        <div>
+                          <p className="text-sm text-muted-foreground">{monthlyComparisonCurrentVsLast.thisMonth.month}</p>
+                          <p className="text-xl font-bold text-info">
+                            {monthlyComparisonCurrentVsLast.thisMonth.orders.toLocaleString('my-MM')} ခု
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <Badge 
+                            variant={monthlyComparisonCurrentVsLast.orderChange >= 0 ? "default" : "destructive"}
+                            className={
+                              monthlyComparisonCurrentVsLast.orderChange >= 0 
+                                ? "bg-info/10 text-info border-info/20" 
+                                : ""
+                            }
+                          >
+                            {monthlyComparisonCurrentVsLast.orderChange >= 0 ? '+' : ''}
+                            {monthlyComparisonCurrentVsLast.orderChange.toFixed(1)}%
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-muted/5 to-muted/10 border border-muted/20">
+                        <div>
+                          <p className="text-sm text-muted-foreground">{monthlyComparisonCurrentVsLast.lastMonth.month}</p>
+                          <p className="text-xl font-bold text-muted-foreground">
+                            {monthlyComparisonCurrentVsLast.lastMonth.orders.toLocaleString('my-MM')} ခု
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Visual Orders Bar */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Progress</span>
+                        <span>{monthlyComparisonCurrentVsLast.orderChange >= 0 ? 'တိုးတက်' : 'ကျဆင်း'}</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            monthlyComparisonCurrentVsLast.orderChange >= 0 ? 'bg-info' : 'bg-destructive'
+                          }`}
+                          style={{ 
+                            width: `${Math.min(Math.abs(monthlyComparisonCurrentVsLast.orderChange), 100)}%` 
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Comparison Chart */}
+                <div className="mt-6">
+                  <ChartContainer config={chartConfig} className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart 
+                        data={[
+                          {
+                            month: monthlyComparisonCurrentVsLast.lastMonth.month,
+                            revenue: monthlyComparisonCurrentVsLast.lastMonth.revenue,
+                            orders: monthlyComparisonCurrentVsLast.lastMonth.orders,
+                          },
+                          {
+                            month: monthlyComparisonCurrentVsLast.thisMonth.month,
+                            revenue: monthlyComparisonCurrentVsLast.thisMonth.revenue,
+                            orders: monthlyComparisonCurrentVsLast.thisMonth.orders,
+                          }
+                        ]}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis 
+                          dataKey="month" 
+                          stroke="hsl(var(--muted-foreground))" 
+                          fontSize={12}
+                        />
+                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <ChartTooltip 
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              return (
+                                <div className="bg-background border rounded-lg p-3 shadow-lg">
+                                  <p className="font-medium">{label}</p>
+                                  <p className="text-sm text-success">
+                                    ရောင်းအား: {formatCurrency(payload[0].value as number)}
+                                  </p>
+                                  <p className="text-sm text-info">
+                                    မှာယူမှုများ: {payload[1].value}
+                                  </p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Bar 
+                          dataKey="revenue" 
+                          fill="hsl(var(--chart-1))" 
+                          name="ရောင်းအား"
+                          radius={[4, 4, 0, 0]}
+                        />
+                        <Bar 
+                          dataKey="orders" 
+                          fill="hsl(var(--chart-2))" 
+                          name="မှာယူမှုများ"
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartContainer>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Recent Orders Table */}
             <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
