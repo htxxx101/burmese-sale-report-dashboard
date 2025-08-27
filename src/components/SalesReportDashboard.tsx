@@ -585,12 +585,13 @@ export default function SalesReportDashboard() {
         startY: 38,
         head: [['Metric', 'Value']],
         body: [
-          ['Total Revenue', formatCurrency(summaryMetrics.totalRevenue)],
-          ['Total Orders', String(summaryMetrics.totalOrders)],
-          ['Total Items', String(summaryMetrics.totalItems)],
-          ['Average Order Value', formatCurrency(summaryMetrics.averageOrderValue)],
+          ['Total Revenue', `${summaryMetrics.totalRevenue.toLocaleString()} MMK`],
+          ['Total Orders', summaryMetrics.totalOrders.toString()],
+          ['Total Items', summaryMetrics.totalItems.toString()],
+          ['Average Order Value', `${summaryMetrics.averageOrderValue.toLocaleString()} MMK`],
         ],
-        styles: { fontSize: 9 },
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [66, 139, 202] },
       });
 
       let currentY = (pdf as any).lastAutoTable?.finalY || 38;
@@ -599,13 +600,15 @@ export default function SalesReportDashboard() {
       const comparison = monthlyComparisonCurrentVsLast;
       autoTable(pdf, {
         startY: currentY + 6,
-        head: [['', comparison.thisMonth.month, comparison.lastMonth.month]],
+        head: [['Metric', comparison.thisMonth.month, comparison.lastMonth.month]],
         body: [
-          ['Revenue', formatCurrency(comparison.thisMonth.revenue), formatCurrency(comparison.lastMonth.revenue)],
-          ['Orders', String(comparison.thisMonth.orders), String(comparison.lastMonth.orders)],
-          ['Change', `${comparison.revenueChange >= 0 ? '+' : ''}${comparison.revenueChange.toFixed(1)}%`, `${comparison.orderChange >= 0 ? '+' : ''}${comparison.orderChange.toFixed(1)}%`],
+          ['Revenue', `${comparison.thisMonth.revenue.toLocaleString()} MMK`, `${comparison.lastMonth.revenue.toLocaleString()} MMK`],
+          ['Orders', comparison.thisMonth.orders.toString(), comparison.lastMonth.orders.toString()],
+          ['Revenue Change', `${comparison.revenueChange >= 0 ? '+' : ''}${comparison.revenueChange.toFixed(1)}%`, '-'],
+          ['Order Change', `${comparison.orderChange >= 0 ? '+' : ''}${comparison.orderChange.toFixed(1)}%`, '-'],
         ],
-        styles: { fontSize: 9 },
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [66, 139, 202] },
       });
 
       currentY = (pdf as any).lastAutoTable.finalY;
@@ -616,11 +619,11 @@ export default function SalesReportDashboard() {
           ? order.items.map((it) => `${it.item} x${it.quantity}`).join(', ')
           : '-';
         return [
-          order.order_id,
-          order.sender,
-          new Date(order.created_time).toLocaleString(),
+          order.order_id || '-',
+          order.sender || 'Unknown',
+          new Date(order.created_time).toLocaleDateString() + ' ' + new Date(order.created_time).toLocaleTimeString(),
           itemsSummary,
-          formatCurrency(order.total_amount),
+          `${order.total_amount.toLocaleString()} MMK`,
         ];
       });
 
@@ -628,23 +631,27 @@ export default function SalesReportDashboard() {
         startY: currentY + 8,
         head: [['Order ID', 'Customer', 'Date', 'Items', 'Amount']],
         body: tableBody,
-        styles: { fontSize: 8, cellPadding: 2 },
+        styles: { fontSize: 8, cellPadding: 3, overflow: 'linebreak' },
+        headStyles: { fillColor: [66, 139, 202], textColor: [255, 255, 255] },
         columnStyles: {
-          0: { cellWidth: 36 },
-          1: { cellWidth: 30 },
-          2: { cellWidth: 34 },
-          3: { cellWidth: 70 },
-          4: { cellWidth: 20, halign: 'right' },
+          0: { cellWidth: 32, fontStyle: 'bold' },
+          1: { cellWidth: 28 },
+          2: { cellWidth: 35 },
+          3: { cellWidth: 75, overflow: 'linebreak' },
+          4: { cellWidth: 25, halign: 'right', fontStyle: 'bold' },
         },
         didDrawPage: (data) => {
           // Header per page
-          pdf.setFontSize(9);
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'bold');
           pdf.text(`Sales Report - ${PERIOD_LABELS[selectedPeriod]}`, margin, 10);
           // Footer page number
           const pageSize = pdf.internal.pageSize;
           const pageWidth = pageSize.getWidth();
           const pageHeight = pageSize.getHeight();
-          pdf.text(`${pdf.getNumberOfPages()}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
+          pdf.setFont('helvetica', 'normal');
+          pdf.setFontSize(8);
+          pdf.text(`Page ${pdf.getNumberOfPages()}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
         },
       });
 
@@ -1293,6 +1300,12 @@ export default function SalesReportDashboard() {
                           </TableHead>
                           <TableHead className="font-medium">
                             <div className="flex items-center gap-2">
+                              <User className="h-4 w-4" />
+                              ဝယ်ယူသူ
+                            </div>
+                          </TableHead>
+                          <TableHead className="font-medium">
+                            <div className="flex items-center gap-2">
                               <Package className="h-4 w-4" />
                               ကုန်ပစ္စည်း အရေအတွက်
                             </div>
@@ -1323,6 +1336,11 @@ export default function SalesReportDashboard() {
                                 <Badge variant="outline" className="font-mono text-xs">
                                   {order.order_id}
                                 </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm font-medium">
+                                  {order.sender || 'မသိ'}
+                                </div>
                               </TableCell>
                               <TableCell>
                                 <Badge variant="secondary">
