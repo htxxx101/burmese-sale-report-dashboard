@@ -9,7 +9,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieC
 import { Calendar, TrendingUp, ShoppingCart, Package, DollarSign, Clock, User, Hash, Settings, Lock, Unlock, Eye, EyeOff, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import autoTable from 'jspdf-autotable';
+import Papa from 'papaparse';
 
 // Types
 interface OrderItem {
@@ -81,6 +82,18 @@ const PERIOD_LABELS = {
 };
 
 const PERIOD_ORDER: Period[] = ['today', 'yesterday', 'last_week', 'this_month', 'last_month', 'last_3_months', 'last_6_months'];
+
+// Normalize Google Sheets URL (accept share links and convert to CSV export)
+const normalizeGoogleSheetsUrl = (input: string): string => {
+  if (!input) return '';
+  if (input.includes('/export?') && input.includes('format=csv')) return input;
+  const match = input.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (!match) return input;
+  const id = match[1];
+  const gidMatch = input.match(/[?#&]gid=(\d+)/) || input.match(/#gid=(\d+)/);
+  const gid = gidMatch ? gidMatch[1] : '0';
+  return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
+};
 
 export default function SalesReportDashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('today');
@@ -248,28 +261,26 @@ export default function SalesReportDashboard() {
   // Fetch data from Google Sheets
   const fetchData = async (url?: string) => {
     const urlToUse = url || googleSheetsUrl || localStorage.getItem('googleSheetsUrl');
+    const normalized = urlToUse ? normalizeGoogleSheetsUrl(urlToUse) : '';
     
     setLoading(true);
     setError(null);
     
     try {
-      if (urlToUse && urlToUse.trim()) {
-        // Try to fetch from Google Sheets URL
-        const response = await fetch(urlToUse);
-        
+      if (normalized && normalized.trim()) {
+        const response = await fetch(normalized);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
-        const csvText = await response.text();
-        const parsedData = parseCSVToSalesData(csvText);
+        const text = await response.text();
+        const parsedData = parseCSVToSalesData(text);
         setRawData(parsedData);
         
-        // Save URL to localStorage for future use
+        // Save original URL (what user pasted)
         if (url) {
           localStorage.setItem('googleSheetsUrl', url);
           setGoogleSheetsUrl(url);
-          setIsConfigLocked(true); // Lock config after successful connection
+          setIsConfigLocked(true);
         }
       } else {
         // Use sample data if no URL provided
@@ -286,59 +297,40 @@ export default function SalesReportDashboard() {
     }
   };
 
-  // Parse CSV data to SalesData format
+  // Parse CSV data to SalesData format (robust via PapaParse)
   const parseCSVToSalesData = (csvText: string): SalesData[] => {
-    const lines = csvText.trim().split('\n');
-    
-    // Handle CSV with potential commas in JSON data
-    const parseCsvLine = (line: string) => {
-      const result = [];
-      let current = '';
-      let inQuotes = false;
-      let inJson = false;
-      
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        
-        if (char === '"' && (i === 0 || line[i - 1] !== '\\')) {
-          inQuotes = !inQuotes;
-        } else if (char === '[' && inQuotes) {
-          inJson = true;
-        } else if (char === ']' && inQuotes && inJson) {
-          inJson = false;
-        } else if (char === ',' && !inQuotes && !inJson) {
-          result.push(current.trim().replace(/^"/, '').replace(/"$/, ''));
-          current = '';
-          continue;
+    const result = Papa.parse(csvText, {
+      header: true,
+      skipEmptyLines: true,
+      dynamicTyping: false
+    });
+
+    if ((result as any).errors && (result as any).errors.length) {
+      console.warn('CSV parse errors:', (result as any).errors);
+    }
+
+    const rows = (result.data as any[]).filter(Boolean);
+
+    return rows.map((row: any) => {
+      const get = (keys: string[]): string => {
+        for (const k of keys) {
+          if (row[k] !== undefined && row[k] !== null) return String(row[k]);
+          const found = Object.keys(row).find((rk) => rk && rk.trim && rk.trim().toLowerCase() === k.toLowerCase());
+          if (found) return String(row[found]);
         }
-        
-        current += char;
-      }
-      
-      result.push(current.trim().replace(/^"/, '').replace(/"$/, ''));
-      return result;
-    };
-    
-    const headers = parseCsvLine(lines[0]);
-    
-    return lines.slice(1).map(line => {
-      if (!line.trim()) return null;
-      
-      const values = parseCsvLine(line);
-      const row: any = {};
-      
-      headers.forEach((header, index) => {
-        row[header.trim()] = values[index] || '';
-      });
-      
-      // Map CSV columns to SalesData format
-      return {
-        created_time: row.created_time || row.Created_Time || '',
-        sender: row.buyer_name || row.Buyer_Name || row.sender || row.Sender || '',
-        order_id: row.order_id || row.Order_ID || '',
-        item: row.items || row.Items || row.item || row.Item || ''
+        return '';
       };
-    }).filter(Boolean) as SalesData[];
+
+      const itemsRaw = get(['items', 'Items', 'item', 'Item']);
+      const itemsStr = (itemsRaw || '').replace(/\r/g, '').replace(/""/g, '"');
+
+      return {
+        created_time: get(['created_time', 'Created_Time', 'created time', 'Created Time']),
+        sender: get(['buyer_name', 'Buyer_Name', 'buyer name', 'Buyer Name', 'sender', 'Sender']),
+        order_id: get(['order_id', 'Order_ID', 'Order Id', 'Order ID']),
+        item: itemsStr
+      };
+    });
   };
 
   useEffect(() => {
@@ -576,188 +568,89 @@ export default function SalesReportDashboard() {
   // Export to PDF functionality
   const exportToPDF = async () => {
     try {
-      const dashboardElement = document.getElementById('dashboard-content');
-      if (!dashboardElement) return;
-
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = 210;
-      const pageHeight = 297;
-      const margin = 15;
-      const contentWidth = pageWidth - (margin * 2);
-      
-      let currentY = margin;
+      const margin = 12;
 
-      // Add header
-      pdf.setFontSize(20);
+      // Header
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Sales Report Dashboard', margin, currentY);
-      currentY += 15;
-
-      pdf.setFontSize(12);
+      pdf.setFontSize(18);
+      pdf.text('Sales Report Dashboard', margin, 18);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(`Report Period: ${PERIOD_LABELS[selectedPeriod]}`, margin, currentY);
-      currentY += 10;
-      
-      pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, margin, currentY);
-      currentY += 15;
-
-      // Add summary metrics
-      pdf.setFontSize(16);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Summary Metrics', margin, currentY);
-      currentY += 10;
-
       pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'normal');
-      
-      const metrics = [
-        `Total Revenue: ${formatCurrency(summaryMetrics.totalRevenue)}`,
-        `Total Orders: ${summaryMetrics.totalOrders}`,
-        `Total Items: ${summaryMetrics.totalItems}`,
-        `Average Order Value: ${formatCurrency(summaryMetrics.averageOrderValue)}`
-      ];
+      pdf.text(`Report Period: ${PERIOD_LABELS[selectedPeriod]}`, margin, 26);
+      pdf.text(`Generated on: ${new Date().toLocaleString()}`, margin, 32);
 
-      metrics.forEach(metric => {
-        pdf.text(metric, margin, currentY);
-        currentY += 8;
+      // Summary metrics table
+      autoTable(pdf, {
+        startY: 38,
+        head: [['Metric', 'Value']],
+        body: [
+          ['Total Revenue', formatCurrency(summaryMetrics.totalRevenue)],
+          ['Total Orders', String(summaryMetrics.totalOrders)],
+          ['Total Items', String(summaryMetrics.totalItems)],
+          ['Average Order Value', formatCurrency(summaryMetrics.averageOrderValue)],
+        ],
+        styles: { fontSize: 9 },
       });
 
-      currentY += 10;
+      let currentY = (pdf as any).lastAutoTable?.finalY || 38;
 
-      // Add monthly comparison
-      pdf.setFontSize(16);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Monthly Comparison', margin, currentY);
-      currentY += 10;
-
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'normal');
-      
+      // Monthly comparison table
       const comparison = monthlyComparisonCurrentVsLast;
-      const comparisonText = [
-        `This Month (${comparison.thisMonth.month}):`,
-        `  Revenue: ${formatCurrency(comparison.thisMonth.revenue)}`,
-        `  Orders: ${comparison.thisMonth.orders}`,
-        `Last Month (${comparison.lastMonth.month}):`,
-        `  Revenue: ${formatCurrency(comparison.lastMonth.revenue)}`,
-        `  Orders: ${comparison.lastMonth.orders}`,
-        `Revenue Change: ${comparison.revenueChange >= 0 ? '+' : ''}${comparison.revenueChange.toFixed(1)}%`,
-        `Order Change: ${comparison.orderChange >= 0 ? '+' : ''}${comparison.orderChange.toFixed(1)}%`
-      ];
-
-      comparisonText.forEach(text => {
-        if (currentY > pageHeight - 20) {
-          pdf.addPage();
-          currentY = margin;
-        }
-        pdf.text(text, margin, currentY);
-        currentY += 8;
+      autoTable(pdf, {
+        startY: currentY + 6,
+        head: [['', comparison.thisMonth.month, comparison.lastMonth.month]],
+        body: [
+          ['Revenue', formatCurrency(comparison.thisMonth.revenue), formatCurrency(comparison.lastMonth.revenue)],
+          ['Orders', String(comparison.thisMonth.orders), String(comparison.lastMonth.orders)],
+          ['Change', `${comparison.revenueChange >= 0 ? '+' : ''}${comparison.revenueChange.toFixed(1)}%`, `${comparison.orderChange >= 0 ? '+' : ''}${comparison.orderChange.toFixed(1)}%`],
+        ],
+        styles: { fontSize: 9 },
       });
 
-      currentY += 10;
+      currentY = (pdf as any).lastAutoTable.finalY;
 
-      // Add top products
-      if (topProductsData.length > 0) {
-        pdf.setFontSize(16);
-        pdf.setFont('helvetica', 'bold');
-        
-        if (currentY > pageHeight - 30) {
-          pdf.addPage();
-          currentY = margin;
-        }
-        
-        pdf.text('Top Products', margin, currentY);
-        currentY += 10;
+      // Recent orders table with items summary (auto page breaks)
+      const tableBody = filteredOrders.slice(0, 100).map((order) => {
+        const itemsSummary = order.items && order.items.length
+          ? order.items.map((it) => `${it.item} x${it.quantity}`).join(', ')
+          : '-';
+        return [
+          order.order_id,
+          order.sender,
+          new Date(order.created_time).toLocaleString(),
+          itemsSummary,
+          formatCurrency(order.total_amount),
+        ];
+      });
 
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-        
-        topProductsData.slice(0, 10).forEach((product, index) => {
-          if (currentY > pageHeight - 15) {
-            pdf.addPage();
-            currentY = margin;
-          }
-          
-          const text = `${index + 1}. ${product.name}: ${formatCurrency(product.value)} (Qty: ${product.quantity})`;
-          
-          // Handle long product names by wrapping text
-          const splitText = pdf.splitTextToSize(text, contentWidth);
-          pdf.text(splitText, margin, currentY);
-          currentY += splitText.length * 5;
-        });
-      }
+      autoTable(pdf, {
+        startY: currentY + 8,
+        head: [['Order ID', 'Customer', 'Date', 'Items', 'Amount']],
+        body: tableBody,
+        styles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: {
+          0: { cellWidth: 36 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 34 },
+          3: { cellWidth: 70 },
+          4: { cellWidth: 20, halign: 'right' },
+        },
+        didDrawPage: (data) => {
+          // Header per page
+          pdf.setFontSize(9);
+          pdf.text(`Sales Report - ${PERIOD_LABELS[selectedPeriod]}`, margin, 10);
+          // Footer page number
+          const pageSize = pdf.internal.pageSize;
+          const pageWidth = pageSize.getWidth();
+          const pageHeight = pageSize.getHeight();
+          pdf.text(`${pdf.getNumberOfPages()}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
+        },
+      });
 
-      currentY += 10;
-
-      // Add recent orders table
-      if (filteredOrders.length > 0) {
-        pdf.setFontSize(16);
-        pdf.setFont('helvetica', 'bold');
-        
-        if (currentY > pageHeight - 50) {
-          pdf.addPage();
-          currentY = margin;
-        }
-        
-        pdf.text('Recent Orders', margin, currentY);
-        currentY += 10;
-
-        // Table headers
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'bold');
-        
-        const headers = ['Order ID', 'Customer', 'Date', 'Amount'];
-        const colWidths = [40, 50, 40, 40];
-        let startX = margin;
-        
-        headers.forEach((header, i) => {
-          pdf.text(header, startX, currentY);
-          startX += colWidths[i];
-        });
-        
-        currentY += 8;
-        
-        pdf.setFont('helvetica', 'normal');
-        
-        // Table rows (limit to recent 20 orders)
-        filteredOrders.slice(0, 20).forEach(order => {
-          if (currentY > pageHeight - 15) {
-            pdf.addPage();
-            currentY = margin;
-            
-            // Repeat headers on new page
-            pdf.setFont('helvetica', 'bold');
-            let headerX = margin;
-            headers.forEach((header, i) => {
-              pdf.text(header, headerX, currentY);
-              headerX += colWidths[i];
-            });
-            currentY += 8;
-            pdf.setFont('helvetica', 'normal');
-          }
-          
-          const rowData = [
-            order.order_id.substring(0, 12) + (order.order_id.length > 12 ? '...' : ''),
-            order.sender.substring(0, 15) + (order.sender.length > 15 ? '...' : ''),
-            new Date(order.created_time).toLocaleDateString(),
-            formatCurrency(order.total_amount)
-          ];
-          
-          let cellX = margin;
-          rowData.forEach((cell, i) => {
-            pdf.text(cell, cellX, currentY);
-            cellX += colWidths[i];
-          });
-          
-          currentY += 6;
-        });
-      }
-
-      // Save PDF
       const currentDate = new Date().toISOString().split('T')[0];
       const periodText = PERIOD_LABELS[selectedPeriod].replace(/\s/g, '-');
       pdf.save(`sales-report-${periodText}-${currentDate}.pdf`);
-      
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('PDF ဖိုင် ထုတ်ရာတွင် ပြဿနာရှိနေပါသည်။ ထပ်မံကြိုးစားပါ။');
@@ -834,7 +727,7 @@ export default function SalesReportDashboard() {
               <div className="flex flex-col md:flex-row gap-2">
                 <Input
                   type="text"
-                  placeholder="Google Sheets CSV URL ကို ထည့်သွင်းပါ..."
+                  placeholder="Google Sheets Share Link (သို့) CSV URL ကို ထည့်သွင်းပါ..."
                   value={googleSheetsUrl}
                   onChange={(e) => setGoogleSheetsUrl(e.target.value)}
                   className="flex-1"
@@ -876,7 +769,7 @@ export default function SalesReportDashboard() {
               )}
               
               <p className="text-xs text-muted-foreground">
-                Google Sheets ကို CSV format အဖြစ် export လုပ်ပြီး လင့်ခ်ကို အသုံးပြုပါ
+                Google Sheets ရဲ့ Share Link ကိုတိုက်ရိုက် ထည့်နိုင်သည်။ Share Link ထည့်ပါက အလိုအလျောက် CSV export URL အဖြစ် ပြောင်းပြီး ဒေတာကို ရယူပါမည်။
               </p>
             </CardContent>
           </Card>
