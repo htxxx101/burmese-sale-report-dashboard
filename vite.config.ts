@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => ({
   },
   preview: {
     // Add your Render host here to allow access
-    allowedHosts: ['sales-dashboard-ko6t.onrender.com', 'localhost'],
+    allowedHosts: ['burmese-sale-dashboard.onrender.com', 'localhost'],
   },
   plugins: [
     react(),
