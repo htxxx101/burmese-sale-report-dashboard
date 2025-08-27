@@ -289,23 +289,56 @@ export default function SalesReportDashboard() {
   // Parse CSV data to SalesData format
   const parseCSVToSalesData = (csvText: string): SalesData[] => {
     const lines = csvText.trim().split('\n');
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    
+    // Handle CSV with potential commas in JSON data
+    const parseCsvLine = (line: string) => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      let inJson = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"' && (i === 0 || line[i - 1] !== '\\')) {
+          inQuotes = !inQuotes;
+        } else if (char === '[' && inQuotes) {
+          inJson = true;
+        } else if (char === ']' && inQuotes && inJson) {
+          inJson = false;
+        } else if (char === ',' && !inQuotes && !inJson) {
+          result.push(current.trim().replace(/^"/, '').replace(/"$/, ''));
+          current = '';
+          continue;
+        }
+        
+        current += char;
+      }
+      
+      result.push(current.trim().replace(/^"/, '').replace(/"$/, ''));
+      return result;
+    };
+    
+    const headers = parseCsvLine(lines[0]);
     
     return lines.slice(1).map(line => {
-      const values = line.split(',');
+      if (!line.trim()) return null;
+      
+      const values = parseCsvLine(line);
       const row: any = {};
       
       headers.forEach((header, index) => {
-        row[header] = values[index]?.trim().replace(/"/g, '') || '';
+        row[header.trim()] = values[index] || '';
       });
       
+      // Map CSV columns to SalesData format
       return {
-        created_time: row.created_time || '',
-        sender: row.sender || '',
-        order_id: row.order_id || '',
-        item: row.item || ''
+        created_time: row.created_time || row.Created_Time || '',
+        sender: row.buyer_name || row.Buyer_Name || row.sender || row.Sender || '',
+        order_id: row.order_id || row.Order_ID || '',
+        item: row.items || row.Items || row.item || row.Item || ''
       };
-    });
+    }).filter(Boolean) as SalesData[];
   };
 
   useEffect(() => {
@@ -546,44 +579,188 @@ export default function SalesReportDashboard() {
       const dashboardElement = document.getElementById('dashboard-content');
       if (!dashboardElement) return;
 
-      // Create canvas from the dashboard
-      const canvas = await html2canvas(dashboardElement, {
-        height: window.innerHeight,
-        width: window.innerWidth,
-        scrollX: 0,
-        scrollY: 0,
-        useCORS: true,
-        scale: 2, // Higher quality
-        allowTaint: true
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const margin = 15;
+      const contentWidth = pageWidth - (margin * 2);
+      
+      let currentY = margin;
+
+      // Add header
+      pdf.setFontSize(20);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Sales Report Dashboard', margin, currentY);
+      currentY += 15;
+
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Report Period: ${PERIOD_LABELS[selectedPeriod]}`, margin, currentY);
+      currentY += 10;
+      
+      pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, margin, currentY);
+      currentY += 15;
+
+      // Add summary metrics
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Summary Metrics', margin, currentY);
+      currentY += 10;
+
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'normal');
+      
+      const metrics = [
+        `Total Revenue: ${formatCurrency(summaryMetrics.totalRevenue)}`,
+        `Total Orders: ${summaryMetrics.totalOrders}`,
+        `Total Items: ${summaryMetrics.totalItems}`,
+        `Average Order Value: ${formatCurrency(summaryMetrics.averageOrderValue)}`
+      ];
+
+      metrics.forEach(metric => {
+        pdf.text(metric, margin, currentY);
+        currentY += 8;
       });
 
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
+      currentY += 10;
+
+      // Add monthly comparison
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Monthly Comparison', margin, currentY);
+      currentY += 10;
+
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'normal');
       
-      const imgWidth = 210;
-      const pageHeight = 295;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
+      const comparison = monthlyComparisonCurrentVsLast;
+      const comparisonText = [
+        `This Month (${comparison.thisMonth.month}):`,
+        `  Revenue: ${formatCurrency(comparison.thisMonth.revenue)}`,
+        `  Orders: ${comparison.thisMonth.orders}`,
+        `Last Month (${comparison.lastMonth.month}):`,
+        `  Revenue: ${formatCurrency(comparison.lastMonth.revenue)}`,
+        `  Orders: ${comparison.lastMonth.orders}`,
+        `Revenue Change: ${comparison.revenueChange >= 0 ? '+' : ''}${comparison.revenueChange.toFixed(1)}%`,
+        `Order Change: ${comparison.orderChange >= 0 ? '+' : ''}${comparison.orderChange.toFixed(1)}%`
+      ];
 
-      let position = 0;
+      comparisonText.forEach(text => {
+        if (currentY > pageHeight - 20) {
+          pdf.addPage();
+          currentY = margin;
+        }
+        pdf.text(text, margin, currentY);
+        currentY += 8;
+      });
 
-      // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+      currentY += 10;
 
-      // Add additional pages if content is longer than one page
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+      // Add top products
+      if (topProductsData.length > 0) {
+        pdf.setFontSize(16);
+        pdf.setFont('helvetica', 'bold');
+        
+        if (currentY > pageHeight - 30) {
+          pdf.addPage();
+          currentY = margin;
+        }
+        
+        pdf.text('Top Products', margin, currentY);
+        currentY += 10;
+
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        
+        topProductsData.slice(0, 10).forEach((product, index) => {
+          if (currentY > pageHeight - 15) {
+            pdf.addPage();
+            currentY = margin;
+          }
+          
+          const text = `${index + 1}. ${product.name}: ${formatCurrency(product.value)} (Qty: ${product.quantity})`;
+          
+          // Handle long product names by wrapping text
+          const splitText = pdf.splitTextToSize(text, contentWidth);
+          pdf.text(splitText, margin, currentY);
+          currentY += splitText.length * 5;
+        });
       }
 
-      // Save PDF with current date
+      currentY += 10;
+
+      // Add recent orders table
+      if (filteredOrders.length > 0) {
+        pdf.setFontSize(16);
+        pdf.setFont('helvetica', 'bold');
+        
+        if (currentY > pageHeight - 50) {
+          pdf.addPage();
+          currentY = margin;
+        }
+        
+        pdf.text('Recent Orders', margin, currentY);
+        currentY += 10;
+
+        // Table headers
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'bold');
+        
+        const headers = ['Order ID', 'Customer', 'Date', 'Amount'];
+        const colWidths = [40, 50, 40, 40];
+        let startX = margin;
+        
+        headers.forEach((header, i) => {
+          pdf.text(header, startX, currentY);
+          startX += colWidths[i];
+        });
+        
+        currentY += 8;
+        
+        pdf.setFont('helvetica', 'normal');
+        
+        // Table rows (limit to recent 20 orders)
+        filteredOrders.slice(0, 20).forEach(order => {
+          if (currentY > pageHeight - 15) {
+            pdf.addPage();
+            currentY = margin;
+            
+            // Repeat headers on new page
+            pdf.setFont('helvetica', 'bold');
+            let headerX = margin;
+            headers.forEach((header, i) => {
+              pdf.text(header, headerX, currentY);
+              headerX += colWidths[i];
+            });
+            currentY += 8;
+            pdf.setFont('helvetica', 'normal');
+          }
+          
+          const rowData = [
+            order.order_id.substring(0, 12) + (order.order_id.length > 12 ? '...' : ''),
+            order.sender.substring(0, 15) + (order.sender.length > 15 ? '...' : ''),
+            new Date(order.created_time).toLocaleDateString(),
+            formatCurrency(order.total_amount)
+          ];
+          
+          let cellX = margin;
+          rowData.forEach((cell, i) => {
+            pdf.text(cell, cellX, currentY);
+            cellX += colWidths[i];
+          });
+          
+          currentY += 6;
+        });
+      }
+
+      // Save PDF
       const currentDate = new Date().toISOString().split('T')[0];
-      pdf.save(`sales-report-${currentDate}.pdf`);
+      const periodText = PERIOD_LABELS[selectedPeriod].replace(/\s/g, '-');
+      pdf.save(`sales-report-${periodText}-${currentDate}.pdf`);
+      
     } catch (error) {
       console.error('Error generating PDF:', error);
+      alert('PDF ဖိုင် ထုတ်ရာတွင် ပြဿနာရှိနေပါသည်။ ထပ်မံကြိုးစားပါ။');
     }
   };
 
