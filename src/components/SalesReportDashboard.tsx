@@ -917,103 +917,6 @@ export default function SalesReportDashboard() {
               </Card>
             </div>
 
-            {/* Recent Orders Table */}
-            <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-lg">လတ်တလော မှာယူမှုများ</CardTitle>
-                <CardDescription>နောက်ဆုံး ရရှိသော မှာယူမှု စာရင်း</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {filteredOrders.length > 0 ? (
-                  <div className="rounded-md border overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-muted/50">
-                          <TableHead className="font-medium">
-                            <div className="flex items-center gap-2">
-                              <Clock className="h-4 w-4" />
-                              အချိန်
-                            </div>
-                          </TableHead>
-                          <TableHead className="font-medium">
-                            <div className="flex items-center gap-2">
-                              <Hash className="h-4 w-4" />
-                              မှာယူမှု နံပါတ်
-                            </div>
-                          </TableHead>
-                          <TableHead className="font-medium">
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4" />
-                              ဝယ်ယူသူ
-                            </div>
-                          </TableHead>
-                          <TableHead className="font-medium">
-                            <div className="flex items-center gap-2">
-                              <Package className="h-4 w-4" />
-                              ကုန်ပစ္စည်း
-                            </div>
-                          </TableHead>
-                          <TableHead className="font-medium text-right">
-                            <div className="flex items-center gap-2 justify-end">
-                              <DollarSign className="h-4 w-4" />
-                              စုစုပေါင်း တန်ဖိုး
-                            </div>
-                          </TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredOrders
-                          .sort((a, b) => new Date(b.created_time).getTime() - new Date(a.created_time).getTime())
-                          .slice(0, 10)
-                          .map((order, index) => (
-                            <TableRow key={order.order_id} className="hover:bg-muted/30 transition-colors">
-                              <TableCell>
-                                <div className="text-sm">
-                                  <div>{new Date(order.created_time).toLocaleDateString('my-MM')}</div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {new Date(order.created_time).toLocaleTimeString('my-MM')}
-                                  </div>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className="font-mono text-xs">
-                                  {order.order_id}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <div className="text-sm font-medium">
-                                  {order.sender || 'မသိ'}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
-                                  {order.items.slice(0, 3).map((item, idx) => (
-                                    <div key={idx} className="text-xs">
-                                      <span className="font-medium">{item.item}</span>
-                                      <span className="text-muted-foreground"> × {item.quantity}</span>
-                                    </div>
-                                  ))}
-                                  {order.items.length > 3 && (
-                                    <div className="text-xs text-muted-foreground">+{order.items.length - 3} အခြား</div>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-right font-medium">
-                                {formatCurrency(order.total_amount)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ) : (
-                  <div className="py-8 text-center text-muted-foreground">
-                    ရွေးချယ်ထားသော ကာလအတွင်း မှာယူမှု မရှိပါ
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Daily Sales Line Chart */}
@@ -1115,6 +1018,103 @@ export default function SalesReportDashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Recent Orders Table */}
+            <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">လတ်တလော မှာယူမှုများ</CardTitle>
+                <CardDescription>နောက်ဆုံး ရရှိသော မှာယူမှု စာရင်း</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {filteredOrders.length > 0 ? (
+                  <div className="rounded-md border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4" />
+                              အချိန်
+                            </div>
+                          </TableHead>
+                          <TableHead className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <Hash className="h-4 w-4" />
+                              မှာယူမှု နံပါတ်
+                            </div>
+                          </TableHead>
+                          <TableHead className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4" />
+                              ဝယ်ယူသူ
+                            </div>
+                          </TableHead>
+                          <TableHead className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <Package className="h-4 w-4" />
+                              ကုန်ပစ္စည်း
+                            </div>
+                          </TableHead>
+                          <TableHead className="font-medium text-right">
+                            <div className="flex items-center gap-2 justify-end">
+                              <DollarSign className="h-4 w-4" />
+                              စုစုပေါင်း တန်ဖိုး
+                            </div>
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredOrders
+                          .sort((a, b) => new Date(b.created_time).getTime() - new Date(a.created_time).getTime())
+                          .slice(0, 10)
+                          .map((order, index) => (
+                            <TableRow key={order.order_id} className="hover:bg-muted/30 transition-colors">
+                              <TableCell>
+                                <div className="text-sm">
+                                  <div>{new Date(order.created_time).toLocaleDateString('my-MM')}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {new Date(order.created_time).toLocaleTimeString('my-MM')}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="font-mono text-xs">
+                                  {order.order_id}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm font-medium">
+                                  {order.sender || 'မသိ'}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="space-y-1">
+                                  {order.items.slice(0, 3).map((item, idx) => (
+                                    <div key={idx} className="text-xs">
+                                      <span className="font-medium">{item.item}</span>
+                                      <span className="text-muted-foreground"> × {item.quantity}</span>
+                                    </div>
+                                  ))}
+                                  {order.items.length > 3 && (
+                                    <div className="text-xs text-muted-foreground">+{order.items.length - 3} အခြား</div>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right font-medium">
+                                {formatCurrency(order.total_amount)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-muted-foreground">
+                    ရွေးချယ်ထားသော ကာလအတွင်း မှာယူမှု မရှိပါ
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Monthly Comparison for 3/6 month periods */}
             {['last_3_months', 'last_6_months'].includes(selectedPeriod) && monthlyComparisonData.length > 0 && (
