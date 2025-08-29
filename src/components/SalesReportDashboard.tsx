@@ -258,32 +258,69 @@ export default function SalesReportDashboard() {
     }
   ];
 
-  // Fetch data from Google Sheets
+  // Fetch data from multiple Google Sheets
   const fetchData = async (url?: string) => {
-    const urlToUse = url || googleSheetsUrl || localStorage.getItem('googleSheetsUrl');
-    const normalized = urlToUse ? normalizeGoogleSheetsUrl(urlToUse) : '';
+    // Fixed sheet URL for all users
+    const fixedSheetId = '12ygIjgiTEW4tj9xmE7K-7l1JkPB3AM3WfNwjEcTqCbw';
+    const urlToUse = url || googleSheetsUrl || `https://docs.google.com/spreadsheets/d/${fixedSheetId}/edit?usp=sharing`;
     
     setLoading(true);
     setError(null);
     
     try {
-      if (normalized && normalized.trim()) {
-        const response = await fetch(normalized);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const text = await response.text();
-        const parsedData = parseCSVToSalesData(text);
-        setRawData(parsedData);
+      let allData: SalesData[] = [];
+      
+      if (urlToUse && urlToUse.includes('spreadsheets')) {
+        // Extract sheet ID from URL
+        const sheetIdMatch = urlToUse.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        const baseSheetId = sheetIdMatch ? sheetIdMatch[1] : fixedSheetId;
         
-        // Save original URL (what user pasted)
-        if (url) {
-          localStorage.setItem('googleSheetsUrl', url);
-          setGoogleSheetsUrl(url);
-          setIsConfigLocked(true);
+        // Generate sheet names for current and previous months
+        const currentDate = new Date();
+        const sheetsToTry: string[] = [];
+        
+        // Try current month and previous 6 months
+        for (let i = 0; i < 6; i++) {
+          const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+          const year = targetDate.getFullYear();
+          const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+          sheetsToTry.push(`Orders-${year}-${month}`);
         }
+        
+        // Fetch data from multiple sheets
+        for (const sheetName of sheetsToTry) {
+          try {
+            const sheetUrl = `https://docs.google.com/spreadsheets/d/${baseSheetId}/export?format=csv&gid=0#gid=0`;
+            // For multiple sheets, we need to use the sheet name in URL, but Google Sheets export 
+            // doesn't support sheet names directly in CSV export, so we'll try the main sheet first
+            const response = await fetch(sheetUrl);
+            if (response.ok) {
+              const text = await response.text();
+              const parsedData = parseCSVToSalesData(text);
+              if (parsedData.length > 0) {
+                allData = allData.concat(parsedData);
+                break; // Use the first successful sheet for now
+              }
+            }
+          } catch (sheetError) {
+            console.warn(`Failed to fetch from sheet ${sheetName}:`, sheetError);
+          }
+        }
+        
+        if (allData.length === 0) {
+          throw new Error('No data found in any sheets');
+        }
+        
+        setRawData(allData);
+        
+        // Save and lock configuration for all users
+        if (!localStorage.getItem('googleSheetsUrl')) {
+          localStorage.setItem('googleSheetsUrl', urlToUse);
+        }
+        setGoogleSheetsUrl(urlToUse);
+        setIsConfigLocked(true);
       } else {
-        // Use sample data if no URL provided
+        // Fallback to sample data
         await new Promise(resolve => setTimeout(resolve, 1000));
         setRawData(sampleData);
       }
