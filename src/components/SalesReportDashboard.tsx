@@ -64,11 +64,16 @@ const chartConfig = {
 };
 
 const CHART_COLORS = [
-  'hsl(var(--chart-1))',
-  'hsl(var(--chart-2))',
-  'hsl(var(--chart-3))',
-  'hsl(var(--chart-4))',
-  'hsl(var(--chart-5))',
+  'hsl(var(--primary))',
+  'hsl(var(--info))',
+  'hsl(var(--success))',
+  'hsl(var(--warning))',
+  'hsl(12 76% 61%)',
+  'hsl(173 58% 39%)',
+  'hsl(197 37% 24%)',
+  'hsl(43 74% 66%)',
+  'hsl(27 87% 67%)',
+  'hsl(221 83% 53%)',
 ];
 
 const PERIOD_LABELS = {
@@ -984,18 +989,24 @@ export default function SalesReportDashboard() {
                               ဝယ်ယူသူ
                             </div>
                           </TableHead>
-                          <TableHead className="font-medium">
-                            <div className="flex items-center gap-2">
-                              <Package className="h-4 w-4" />
-                              ကုန်ပစ္စည်း
-                            </div>
-                          </TableHead>
-                          <TableHead className="font-medium text-right">
-                            <div className="flex items-center gap-2 justify-end">
-                              <DollarSign className="h-4 w-4" />
-                              စုစုပေါင်း တန်ဖိုး
-                            </div>
-                          </TableHead>
+                           <TableHead className="font-medium">
+                             <div className="flex items-center gap-2">
+                               <Package className="h-4 w-4" />
+                               ကုန်ပစ္စည်း
+                             </div>
+                           </TableHead>
+                           <TableHead className="font-medium text-center">
+                             <div className="flex items-center gap-2 justify-center">
+                               <Hash className="h-4 w-4" />
+                               အရေအတွက်
+                             </div>
+                           </TableHead>
+                           <TableHead className="font-medium text-right">
+                             <div className="flex items-center gap-2 justify-end">
+                               <DollarSign className="h-4 w-4" />
+                               စုစုပေါင်း တန်ဖိုး
+                             </div>
+                           </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1022,22 +1033,26 @@ export default function SalesReportDashboard() {
                                   {order.sender || 'မသိ'}
                                 </div>
                               </TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
-                                  {order.items.slice(0, 3).map((item, idx) => (
-                                    <div key={idx} className="text-xs">
-                                      <span className="font-medium">{item.item}</span>
-                                      <span className="text-muted-foreground"> × {item.quantity}</span>
-                                    </div>
-                                  ))}
-                                  {order.items.length > 3 && (
-                                    <div className="text-xs text-muted-foreground">+{order.items.length - 3} အခြား</div>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-right font-medium">
-                                {formatCurrency(order.total_amount)}
-                              </TableCell>
+                               <TableCell>
+                                 <div className="space-y-1">
+                                   {order.items.slice(0, 3).map((item, idx) => (
+                                     <div key={idx} className="text-xs">
+                                       <span className="font-medium">{item.item}</span>
+                                     </div>
+                                   ))}
+                                   {order.items.length > 3 && (
+                                     <div className="text-xs text-muted-foreground">+{order.items.length - 3} အခြား</div>
+                                   )}
+                                 </div>
+                               </TableCell>
+                               <TableCell className="text-center">
+                                 <Badge variant="secondary" className="font-mono text-xs">
+                                   {order.total_quantity}
+                                 </Badge>
+                               </TableCell>
+                               <TableCell className="text-right font-medium">
+                                 {formatCurrency(order.total_amount)}
+                               </TableCell>
                             </TableRow>
                           ))}
                       </TableBody>
