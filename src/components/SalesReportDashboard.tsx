@@ -378,7 +378,7 @@ export default function SalesReportDashboard() {
     if (savedUrl) {
       setGoogleSheetsUrl(savedUrl);
       setIsConfigLocked(true); // Lock if URL already exists
-      setShowGoogleSheetsConfig(true); // Show config if URL exists
+      // Keep config hidden by default - user must click "Show" to see it
     }
     setAutoSync(savedAutoSync);
     
